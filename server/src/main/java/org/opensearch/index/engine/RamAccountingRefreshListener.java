@@ -82,7 +82,8 @@ final class RamAccountingRefreshListener implements BiConsumer<OpenSearchDirecto
             // don't add the segment's memory unless it is not referenced by the previous reader
             // (only new segments)
             if (prevReaders.contains(segmentReader.getCoreCacheHelper().getKey()) == false) {
-                final long ramBytesUsed = segmentReader.ramBytesUsed();
+                // ramBytesUsed removed in Lucene 9.0 (https://github.com/apache/lucene/pull/79)
+                final long ramBytesUsed = 0;
                 // add the segment memory to the breaker (non-breaking)
                 breaker.addWithoutBreaking(ramBytesUsed);
                 // and register a listener for when the segment is closed to decrement the

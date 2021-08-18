@@ -52,7 +52,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
@@ -895,13 +894,7 @@ public abstract class Engine implements Closeable {
     }
 
     protected void fillSegmentStats(SegmentReader segmentReader, boolean includeSegmentFileSizes, SegmentsStats stats) {
-        stats.add(1, segmentReader.ramBytesUsed());
-        stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
-        stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
-        stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
-        stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
-        stats.addPointsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPointsReader()));
-        stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+        // ramBytesUsed removed in lucene #79 (https://github.com/apache/lucene/pull/79)
 
         if (includeSegmentFileSizes) {
             // TODO: consider moving this to StoreStats
@@ -1068,11 +1061,7 @@ public abstract class Engine implements Closeable {
         } catch (IOException e) {
             logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
         }
-        segment.memoryInBytes = segmentReader.ramBytesUsed();
         segment.segmentSort = info.info.getIndexSort();
-        if (verbose) {
-            segment.ramTree = Accountables.namedAccountable("root", segmentReader);
-        }
         segment.attributes = info.info.getAttributes();
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
