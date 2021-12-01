@@ -94,8 +94,10 @@ public class Analysis {
 
     public static void deprecateAnalysisVersion(String name, Settings settings) {
         if (settings.hasValue("version")) {
-            DEPRECATION_LOGGER.deprecate("analyzer.version", "[version] for analysis [" + name + "] is deprecated "
-                + "and will be removed in a future version.");
+            DEPRECATION_LOGGER.deprecate(
+                "analyzer.version",
+                "[version] for analysis [" + name + "] is deprecated " + "and will be removed in a future version."
+            );
         }
     }
 
