@@ -169,6 +169,7 @@ public final class MergePolicyConfig {
         Property.Dynamic,
         Property.IndexScope
     );
+    // todo: deprecate
     public static final Setting<Integer> INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING = Setting.intSetting(
         "index.merge.policy.max_merge_at_once_explicit",
         DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT,
@@ -232,7 +233,6 @@ public final class MergePolicyConfig {
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.getMbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
         mergePolicy.setMaxMergedSegmentMB(maxMergedSegment.getMbFrac());
         mergePolicy.setSegmentsPerTier(segmentsPerTier);
         mergePolicy.setDeletesPctAllowed(deletesPctAllowed);
@@ -261,7 +261,7 @@ public final class MergePolicyConfig {
     }
 
     void setMaxMergesAtOnceExplicit(Integer maxMergeAtOnceExplicit) {
-        mergePolicy.setMaxMergeAtOnceExplicit(maxMergeAtOnceExplicit);
+        // TODO deprecate setting!
     }
 
     void setMaxMergesAtOnce(Integer maxMergeAtOnce) {
