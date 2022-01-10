@@ -157,7 +157,7 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
         );
 
         assertEquals(
-            ((OpenSearchTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnceExplicit(),
+            ((OpenSearchTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(),
             MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT
         );
         indexSettings.updateIndexMetadata(
@@ -172,7 +172,7 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
             )
         );
         assertEquals(
-            ((OpenSearchTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnceExplicit(),
+            ((OpenSearchTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(),
             MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT - 1
         );
 
@@ -260,7 +260,7 @@ public class MergePolicySettingsTests extends OpenSearchTestCase {
             MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE
         );
         assertEquals(
-            ((OpenSearchTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnceExplicit(),
+            ((OpenSearchTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnce(),
             MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT
         );
         assertEquals(
