@@ -5,8 +5,7 @@
 
 package org.opensearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.lucene90.Lucene90HnswVectorsFormat;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.index.DocValuesType;
@@ -35,8 +34,6 @@ import java.util.Map;
  */
 public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
 
-    private static final Logger logger = LogManager.getLogger(KNNVectorFieldMapper.class);
-
     public static final String CONTENT_TYPE = "knn_vector";
 
     /**
@@ -44,6 +41,11 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
      * should make this configurable.
      */
     public static final int MAX_DIMENSION = 10000;
+
+    public static final int MAX_CONN_DEFAULT_VALUE = Lucene90HnswVectorsFormat.DEFAULT_MAX_CONN;
+    public static final int MAX_CONN_MAX_VALUE = 256;
+    public static final int BEAM_WIDTH_DEFAULT_VALUE = Lucene90HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+    public static final int BEAM_WIDTH_MAX_VALUE = 1024;
 
     private static KNNVectorFieldMapper toType(FieldMapper in) {
         return (KNNVectorFieldMapper) in;
@@ -74,20 +76,58 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
                 return value;
             }, m -> toType(m).dimension);
 
+        protected final Parameter<Integer> maxConnections = new Parameter<>("max_connections", false,
+            () -> MAX_CONN_DEFAULT_VALUE,
+            (n, c, o) -> {
+                if (o == null) {
+                    throw new IllegalArgumentException("Max connections cannot be null");
+                }
+                int value = XContentMapValues.nodeIntegerValue(o);
+                if (value > MAX_CONN_MAX_VALUE) {
+                    throw new IllegalArgumentException("Max connections value cannot be greater than " +
+                        MAX_CONN_MAX_VALUE + " for vector: " + name);
+                }
+
+                if (value <= 0) {
+                    throw new IllegalArgumentException("Max connections value must be greater than 0 " +
+                        "for vector: " + name);
+                }
+                return value;
+            }, maxConnections -> toType(maxConnections).maxConnections);
+
+        protected final Parameter<Integer> beamWidth = new Parameter<>("beam_width", false,
+            () -> BEAM_WIDTH_DEFAULT_VALUE,
+            (n, c, o) -> {
+                if (o == null) {
+                    throw new IllegalArgumentException("Beam width cannot be null");
+                }
+                int value = XContentMapValues.nodeIntegerValue(o);
+                if (value > BEAM_WIDTH_MAX_VALUE) {
+                    throw new IllegalArgumentException("Beam width connections value cannot be greater than " +
+                        BEAM_WIDTH_MAX_VALUE + " for vector: " + name);
+                }
+
+                if (value <= 0) {
+                    throw new IllegalArgumentException("Beam width value must be greater than 0 for vector: " + name);
+                }
+                return value;
+            }, beamWidth -> toType(beamWidth).beamWidth);
+
         public Builder(String name) {
             super(name);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(dimension);
+            return List.of(dimension, maxConnections, beamWidth);
         }
 
         @Override
         public KNNVectorFieldMapper build(BuilderContext context) {
             return new KNNVectorFieldMapper(
                 buildFullName(context),
-                new KNNVectorFieldType(buildFullName(context), Collections.emptyMap(), dimension.get()),
+                new KNNVectorFieldType(buildFullName(context), Collections.emptyMap(), dimension.get(),
+                    maxConnections.get(), beamWidth.get()),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
@@ -108,10 +148,14 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
     public static class KNNVectorFieldType extends MappedFieldType {
 
         int dimension;
+        int maxConnections;
+        int beamWidth;
 
-        public KNNVectorFieldType(String name, Map<String, String> meta, int dimension) {
+        public KNNVectorFieldType(String name, Map<String, String> meta, int dimension, int maxConnections, int beamWidth) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.dimension = dimension;
+            this.maxConnections = maxConnections;
+            this.beamWidth = beamWidth;
         }
 
         @Override
@@ -138,18 +182,30 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
         public int getDimension() {
             return dimension;
         }
+
+        public int getMaxConnections() {
+            return maxConnections;
+        }
+
+        public int getBeamWidth() {
+            return beamWidth;
+        }
     }
 
     protected Explicit<Boolean> ignoreMalformed;
     protected boolean stored;
     protected boolean hasDocValues;
     protected Integer dimension;
+    protected Integer maxConnections;
+    protected Integer beamWidth;
     protected String modelId;
 
     public KNNVectorFieldMapper(String simpleName, KNNVectorFieldType mappedFieldType, MultiFields multiFields,
                                 CopyTo copyTo) {
         super(simpleName, mappedFieldType,  multiFields, copyTo);
         dimension = mappedFieldType.dimension;
+        maxConnections = mappedFieldType.maxConnections;
+        beamWidth = mappedFieldType.beamWidth;
         fieldType = new FieldType(KNNVectorFieldMapper.Defaults.FIELD_TYPE);
         fieldType.setVectorDimensionsAndSimilarityFunction(mappedFieldType.getDimension(),
             VectorSimilarityFunction.EUCLIDEAN);
@@ -249,12 +305,7 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
         super.doXContentBody(builder, includeDefaults, params);
     }
 
-    public static class Names {
-        public static final String IGNORE_MALFORMED = "ignore_malformed";
-    }
-
     public static class Defaults {
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
