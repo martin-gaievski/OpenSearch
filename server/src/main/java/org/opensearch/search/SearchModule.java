@@ -62,6 +62,7 @@ import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.IdsQueryBuilder;
 import org.opensearch.index.query.IntervalQueryBuilder;
 import org.opensearch.index.query.IntervalsSourceProvider;
+import org.opensearch.index.query.KNNQueryBuilder;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -1218,6 +1219,7 @@ public class SearchModule {
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent)
         );
 
+        registerQuery(new QuerySpec<>(KNNQueryBuilder.NAME, KNNQueryBuilder::new, KNNQueryBuilder::fromXContent));
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
         }

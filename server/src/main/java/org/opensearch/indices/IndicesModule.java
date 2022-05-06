@@ -54,6 +54,7 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
+import org.opensearch.index.mapper.KNNVectorFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MetadataFieldMapper;
@@ -157,6 +158,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(CompletionFieldMapper.CONTENT_TYPE, CompletionFieldMapper.PARSER);
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
+        mappers.put(KNNVectorFieldMapper.CONTENT_TYPE, new KNNVectorFieldMapper.TypeParser());
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {

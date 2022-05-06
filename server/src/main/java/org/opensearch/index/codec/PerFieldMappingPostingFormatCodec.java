@@ -35,6 +35,7 @@ package org.opensearch.index.codec;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene91.Lucene91Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
@@ -55,6 +56,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene91Codec {
     private final Logger logger;
     private final MapperService mapperService;
     private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();
+    private final KnnVectorsFormatFactory knnVectorsFormatFactory;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class)
@@ -65,6 +67,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene91Codec {
         super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
+        this.knnVectorsFormatFactory = new KnnVectorsFormatFactory(mapperService);
     }
 
     @Override
@@ -81,5 +84,10 @@ public class PerFieldMappingPostingFormatCodec extends Lucene91Codec {
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
         return dvFormat;
+    }
+
+    @Override
+    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+        return knnVectorsFormatFactory.create(field);
     }
 }
