@@ -14,6 +14,9 @@ import org.opensearch.index.mapper.KNNVectorFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 
+/**
+ * POC for lucene ann enablement
+ */
 public class KnnVectorsFormatFactory {
 
     private final MapperService mapperService;
