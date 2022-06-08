@@ -37,7 +37,7 @@ import java.util.Map;
  */
 public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
 
-    public static final String CONTENT_TYPE = "vector";
+    public static final String CONTENT_TYPE = "knn_vector";
 
 
     /**
@@ -117,21 +117,13 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
                 return value;
             }, beamWidth -> toType(beamWidth).beamWidth);
 
-        protected final Parameter<KNNVectorFieldType.DataType> dtype = new Parameter<>("dtype", false,
-            () -> KNNVectorFieldType.DataType.defaultType(),
-            (n, c, o) -> {
-                String value = XContentMapValues.nodeStringValue(o);
-                KNNVectorFieldType.DataType dType = KNNVectorFieldType.DataType.valueOf(value);
-                return dType;
-            }, dtype -> toType(dtype).dtype);
-
         public Builder(String name) {
             super(name);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(dimension, maxConnections, beamWidth, dtype);
+            return List.of(dimension, maxConnections, beamWidth);
         }
 
         @Override
@@ -139,7 +131,7 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
             return new KNNVectorFieldMapper(
                 buildFullName(context),
                 new KNNVectorFieldType(buildFullName(context), Collections.emptyMap(), dimension.get(),
-                    maxConnections.get(), beamWidth.get(), dtype.get()),
+                    maxConnections.get(), beamWidth.get()),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build()
             );
@@ -168,14 +160,12 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
         int dimension;
         int maxConnections;
         int beamWidth;
-        DataType dtype;
 
-        public KNNVectorFieldType(String name, Map<String, String> meta, int dimension, int maxConnections, int beamWidth, DataType dType) {
+        public KNNVectorFieldType(String name, Map<String, String> meta, int dimension, int maxConnections, int beamWidth) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.dimension = dimension;
             this.maxConnections = maxConnections;
             this.beamWidth = beamWidth;
-            this.dtype = dType;
         }
 
         @Override
@@ -210,21 +200,6 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
         public int getBeamWidth() {
             return beamWidth;
         }
-
-        public DataType getDatatype() {
-            return dtype;
-        }
-
-        /**
-         * POC for lucene ann enablement
-         */
-        public enum DataType {
-            FLOAT, INTEGER;
-
-            public static DataType defaultType() {
-                return FLOAT;
-            }
-        }
     }
 
     protected Explicit<Boolean> ignoreMalformed;
@@ -233,7 +208,6 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
     protected Integer dimension;
     protected Integer maxConnections;
     protected Integer beamWidth;
-    protected KNNVectorFieldType.DataType dtype;
     protected String modelId;
 
     public KNNVectorFieldMapper(String simpleName, KNNVectorFieldType mappedFieldType, MultiFields multiFields,
@@ -242,7 +216,6 @@ public class KNNVectorFieldMapper extends ParametrizedFieldMapper {
         dimension = mappedFieldType.dimension;
         maxConnections = mappedFieldType.maxConnections;
         beamWidth = mappedFieldType.beamWidth;
-        dtype = mappedFieldType.dtype;
         fieldType = new FieldType(KNNVectorFieldMapper.Defaults.FIELD_TYPE);
         fieldType.setVectorDimensionsAndSimilarityFunction(mappedFieldType.getDimension(),
             VectorSimilarityFunction.EUCLIDEAN);

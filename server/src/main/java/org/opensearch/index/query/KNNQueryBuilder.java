@@ -7,7 +7,6 @@
  */
 package org.opensearch.index.query;
 
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.ParseField;
@@ -17,37 +16,28 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.index.mapper.KNNVectorFieldMapper;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * POC for lucene ann enablement
  */
 public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
 
-    public static final String NAME = "knn_query";
+    public static final String NAME = "knn";
 
     public static final ParseField VECTOR_FIELD = new ParseField("vector");
     public static final ParseField K_FIELD = new ParseField("k");
-    public static final ParseField DTYPE_FIELD = new ParseField("dtype");
 
     private final String fieldName;
-    private final String[] vector;
-    private final String dtype;
+    private final float[] vector;
     private final int k;
 
-    public KNNQueryBuilder(String fieldName, String[] vector, int k) {
-        this(fieldName, vector, k, "FLOAT");
-    }
-
-    public KNNQueryBuilder(String fieldName, String[] vector, int k, String dtype) {
+    public KNNQueryBuilder(String fieldName, float[] vector, int k) {
         if (Strings.isNullOrEmpty(fieldName)) {
             throw new IllegalArgumentException("[" + NAME + "] requires fieldName");
         }
@@ -64,7 +54,6 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
         this.fieldName = fieldName;
         this.vector = vector;
         this.k = k;
-        this.dtype = dtype;
     }
 
     /**
@@ -75,9 +64,8 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
         super(in);
         try {
             fieldName = in.readString();
-            vector = in.readStringArray();
+            vector = in.readFloatArray();
             k = in.readInt();
-            dtype = in.readOptionalString();
         } catch (IOException ex) {
             throw new RuntimeException("[KNN] Unable to create KNNQueryBuilder: " + ex);
         }
@@ -91,9 +79,8 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeStringArray(vector);
+        out.writeFloatArray(vector);
         out.writeInt(k);
-        out.writeOptionalString(dtype);
     }
 
     @Override
@@ -103,8 +90,6 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
 
         builder.field(VECTOR_FIELD.getPreferredName(), vector);
         builder.field(K_FIELD.getPreferredName(), k);
-        builder.field(DTYPE_FIELD.getPreferredName(), dtype);
-
         printBoostAndQueryName(builder);
         builder.endObject();
         builder.endObject();
@@ -112,27 +97,7 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (!(fieldType instanceof KNNVectorFieldMapper.KNNVectorFieldType)) {
-            throw new RuntimeException("Invalid knn type");
-        }
-        KNNVectorFieldMapper.KNNVectorFieldType knnVectorFieldType = (KNNVectorFieldMapper.KNNVectorFieldType) fieldType;
-        KNNVectorFieldMapper.KNNVectorFieldType.DataType dataType =
-            knnVectorFieldType.getDatatype() == null ? KNNVectorFieldMapper.KNNVectorFieldType.DataType.defaultType() : knnVectorFieldType.getDatatype();
-        if (dataType == KNNVectorFieldMapper.KNNVectorFieldType.DataType.FLOAT) {
-            float[] floatVector = new float[vector.length];
-            for (int i = 0; i < vector.length; i++) {
-                floatVector[i] = Float.parseFloat(vector[i]);
-            }
-            return new KnnVectorQuery(fieldName, floatVector, k);
-        } else if (dataType == KNNVectorFieldMapper.KNNVectorFieldType.DataType.INTEGER) {
-            float[] floatVector = new float[vector.length];
-            for (int i = 0; i < vector.length; i++) {
-                floatVector[i] = Integer.valueOf(vector[i]).floatValue();
-            }
-            return new KnnVectorQuery(fieldName, floatVector, k);
-        }
-        throw new RuntimeException("Data type is not supported " + this.dtype);
+        return new KnnVectorQuery(fieldName, vector, k);
     }
 
     @Override
@@ -172,8 +137,6 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
                             boost = parser.floatValue();
                         } else if (K_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             k = (Integer) NumberFieldMapper.NumberType.INTEGER.parse(parser.objectBytes(), false);
-                        } else if (DTYPE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            dtype = parser.text();
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
@@ -192,7 +155,7 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
             }
         }
 
-        KNNQueryBuilder knnQuery = new KNNQueryBuilder(fieldName, ObjectsToStrings(vector), k, dtype);
+        KNNQueryBuilder knnQuery = new KNNQueryBuilder(fieldName, ObjectsToFloats(vector), k);
         knnQuery.queryName(queryName);
         knnQuery.boost(boost);
         return knnQuery;
@@ -202,14 +165,6 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> {
         float[] vec = new float[objs.size()];
         for (int i = 0; i < objs.size(); i++) {
             vec[i] = ((Number) objs.get(i)).floatValue();
-        }
-        return vec;
-    }
-
-    private static String[] ObjectsToStrings(List<Object> objs) {
-        String[] vec = new String[objs.size()];
-        for (int i = 0; i < objs.size(); i++) {
-            vec[i] = objs.get(i).toString();
         }
         return vec;
     }
