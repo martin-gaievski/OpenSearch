@@ -94,6 +94,7 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -122,6 +123,11 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.common.collect.MapBuilder.newMapBuilder;
 
+/**
+ * The main OpenSearch index service
+ *
+ * @opensearch.internal
+ */
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
     private final IndexEventListener eventListener;
@@ -274,6 +280,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
     }
 
+    /**
+     * Context for index creation
+     *
+     * @opensearch.internal
+     */
     public enum IndexCreationContext {
         CREATE_INDEX,
         METADATA_VERIFICATION
@@ -418,7 +429,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized IndexShard createShard(
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -520,7 +532,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 indexingOperationListeners,
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
-                circuitBreakerService
+                circuitBreakerService,
+                this.indexSettings.isSegRepEnabled() && routing.primary() ? checkpointPublisher : null
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -736,6 +749,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Cache listener for bitsets
+     *
+     * @opensearch.internal
+     */
     private static final class BitsetCacheListener implements BitsetFilterCache.Listener {
         final IndexService indexService;
 
@@ -889,6 +907,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Shard Store Deleter Interface
+     *
+     * @opensearch.internal
+     */
     public interface ShardStoreDeleter {
         void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
 
@@ -995,6 +1018,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    /**
+     * Base asynchronous task
+     *
+     * @opensearch.internal
+     */
     abstract static class BaseAsyncTask extends AbstractAsyncTask {
 
         protected final IndexService indexService;
@@ -1015,6 +1043,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * FSyncs the translog for all shards of this index in a defined interval.
+     *
+     * @opensearch.internal
      */
     static final class AsyncTranslogFSync extends BaseAsyncTask {
 

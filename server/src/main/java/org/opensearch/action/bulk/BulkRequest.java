@@ -70,6 +70,8 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  *
  * Note that we only support refresh on the bulk request not per item.
  * @see org.opensearch.client.Client#bulk(BulkRequest)
+ *
+ * @opensearch.internal
  */
 public class BulkRequest extends ActionRequest implements CompositeIndicesRequest, WriteRequest<BulkRequest>, Accountable {
 
@@ -285,7 +287,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         String routing = valueOrDefault(defaultRouting, globalRouting);
         String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
         Boolean requireAlias = valueOrDefault(defaultRequireAlias, globalRequireAlias);
-        new BulkRequestParser(true).parse(
+        new BulkRequestParser().parse(
             data,
             defaultIndex,
             routing,
@@ -294,7 +296,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
             requireAlias,
             allowExplicitIndex,
             xContentType,
-            (indexRequest, type) -> internalAdd(indexRequest),
+            this::internalAdd,
             this::internalAdd,
             this::add
         );

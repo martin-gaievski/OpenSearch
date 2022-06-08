@@ -835,7 +835,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
     }
 
-    public void testMasterShutdownDuringSnapshot() throws Exception {
+    public void testClusterManagerShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting two cluster-manager nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(2);
         internalCluster().startDataOnlyNodes(2);
@@ -873,7 +873,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(0, snapshotInfo.failedShards());
     }
 
-    public void testMasterAndDataShutdownDuringSnapshot() throws Exception {
+    public void testClusterManagerAndDataShutdownDuringSnapshot() throws Exception {
         logger.info("-->  starting three cluster-manager nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(3);
         internalCluster().startDataOnlyNodes(2);
@@ -890,7 +890,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final int numberOfShards = getNumShards("test-idx").numPrimaries;
         logger.info("number of shards: {}", numberOfShards);
 
-        final String masterNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
+        final String clusterManagerNode = blockMasterFromFinalizingSnapshotOnSnapFile("test-repo");
         final String dataNode = blockNodeWithIndex("test-repo", "test-idx");
 
         dataNodeClient().admin()
@@ -902,7 +902,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> stopping data node {}", dataNode);
         stopNode(dataNode);
-        logger.info("--> stopping cluster-manager node {} ", masterNode);
+        logger.info("--> stopping cluster-manager node {} ", clusterManagerNode);
         internalCluster().stopCurrentMasterNode();
 
         logger.info("--> wait until the snapshot is done");
@@ -926,7 +926,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
      */
     public void testRestoreShrinkIndex() throws Exception {
         logger.info("-->  starting a cluster-manager node and a data node");
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
 
         final String repo = "test-repo";
@@ -1143,9 +1143,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(snapshot3IndexMetaFiles, hasSize(1)); // should have deleted the metadata blob referenced by the first two snapshots
     }
 
-    public void testDataNodeRestartWithBusyMasterDuringSnapshot() throws Exception {
+    public void testDataNodeRestartWithBusyClusterManagerDuringSnapshot() throws Exception {
         logger.info("-->  starting a cluster-manager node and two data nodes");
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         final Path repoPath = randomRepoPath();
         createRepository("test-repo", "mock", repoPath);
@@ -1201,7 +1201,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     public void testDataNodeRestartAfterShardSnapshotFailure() throws Exception {
         logger.info("-->  starting a cluster-manager node and two data nodes");
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final Path repoPath = randomRepoPath();
         createRepository("test-repo", "mock", repoPath);
@@ -1323,7 +1323,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testAbortWaitsOnDataNode() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         final String indexName = "test-index";
         createIndex(indexName);
@@ -1375,7 +1375,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testPartialSnapshotAllShardsMissing() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
@@ -1393,7 +1393,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
      * correctly by testing a snapshot name collision.
      */
     public void testCreateSnapshotLegacyPath() throws Exception {
-        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNode();
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
@@ -1403,7 +1403,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final Snapshot snapshot1 = PlainActionFuture.get(
             f -> snapshotsService.createSnapshotLegacy(new CreateSnapshotRequest(repoName, "snap-1"), f)
         );
-        awaitNoMoreRunningOperations(masterNode);
+        awaitNoMoreRunningOperations(clusterManagerNode);
 
         final InvalidSnapshotNameException sne = expectThrows(
             InvalidSnapshotNameException.class,
@@ -1425,7 +1425,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     }
 
     public void testSnapshotDeleteRelocatingPrimaryIndex() throws Exception {
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startClusterManagerOnlyNode();
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final String repoName = "test-repo";
         createRepository(repoName, "fs");

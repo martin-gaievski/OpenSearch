@@ -109,6 +109,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.flush.FlushStats;
@@ -136,7 +137,9 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
+import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -189,6 +192,11 @@ import static org.opensearch.index.IndexService.IndexCreationContext.METADATA_VE
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
+/**
+ * Main OpenSearch indices service
+ *
+ * @opensearch.internal
+ */
 public class IndicesService extends AbstractLifecycleComponent
     implements
         IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>,
@@ -757,6 +765,9 @@ public class IndicesService extends AbstractLifecycleComponent
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
             .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {
+            if (idxSettings.isSegRepEnabled()) {
+                return new NRTReplicationEngineFactory();
+            }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {
             assert engineFactories.get(0).isPresent();
@@ -833,8 +844,9 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     public IndexShard createShard(
         final ShardRouting shardRouting,
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
         final PeerRecoveryTargetService recoveryTargetService,
-        final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+        final RecoveryListener recoveryListener,
         final RepositoriesService repositoriesService,
         final Consumer<IndexShard.ShardFailure> onShardFailure,
         final Consumer<ShardId> globalCheckpointSyncer,
@@ -847,7 +859,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
@@ -908,6 +920,11 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesQueryCache;
     }
 
+    /**
+     * Statistics for old shards
+     *
+     * @opensearch.internal
+     */
     static class OldShardsStats implements IndexEventListener {
 
         final SearchStats searchStats = new SearchStats();
@@ -1231,6 +1248,11 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    /**
+     * A pending delete
+     *
+     * @opensearch.internal
+     */
     private static final class PendingDelete implements Comparable<PendingDelete> {
         final Index index;
         final int shardId;
@@ -1381,6 +1403,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * periodically. In this case it is the field data cache, because a cache that
      * has an entry invalidated may not clean up the entry if it is not read from
      * or written to after invalidation.
+     *
+     * @opensearch.internal
      */
     private static final class CacheCleaner implements Runnable, Releasable {
 
@@ -1569,6 +1593,11 @@ public class IndicesService extends AbstractLifecycleComponent
         return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
     }
 
+    /**
+     * An item in the index shard cache
+     *
+     * @opensearch.internal
+     */
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexShardCacheEntity.class);
         private final IndexShard indexShard;

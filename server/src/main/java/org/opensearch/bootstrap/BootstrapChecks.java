@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.opensearch.bootstrap.jvm.DenyJvmVersionsParser;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
@@ -71,6 +72,8 @@ import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_
  * We enforce bootstrap checks once a node has the transport protocol bound to a non-loopback interface or if the system property {@code
  * opensearch.enforce.bootstrap.checks} is set to {@true}. In this case we assume the node is running in production and
  * all bootstrap checks must pass.
+ *
+ * @opensearch.internal
  */
 final class BootstrapChecks {
 
@@ -222,9 +225,30 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
+        checks.add(new JavaVersionCheck());
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         return Collections.unmodifiableList(checks);
+    }
+
+    static class JavaVersionCheck implements BootstrapCheck {
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            return DenyJvmVersionsParser.getDeniedJvmVersions()
+                .stream()
+                .filter(p -> p.test(getVersion()))
+                .findAny()
+                .map(
+                    p -> BootstrapCheckResult.failure(
+                        String.format(Locale.ROOT, "The current JVM version %s is not recommended for use: %s", getVersion(), p.getReason())
+                    )
+                )
+                .orElseGet(() -> BootstrapCheckResult.success());
+        }
+
+        Runtime.Version getVersion() {
+            return Runtime.version();
+        }
     }
 
     static class HeapSizeCheck implements BootstrapCheck {

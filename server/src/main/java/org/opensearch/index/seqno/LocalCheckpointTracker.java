@@ -41,6 +41,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * This class generates sequences numbers and keeps track of the so-called "local checkpoint" which is the highest number for which all
  * previous sequence numbers have been processed (inclusive).
+ *
+ * @opensearch.internal
  */
 public class LocalCheckpointTracker {
 
@@ -154,7 +156,7 @@ public class LocalCheckpointTracker {
     public synchronized void fastForwardProcessedSeqNo(final long seqNo) {
         advanceMaxSeqNo(seqNo);
         final long currentProcessedCheckpoint = processedCheckpoint.get();
-        if (shouldUpdateSeqNo(seqNo, currentProcessedCheckpoint, persistedCheckpoint) == false) {
+        if (seqNo <= currentProcessedCheckpoint) {
             return;
         }
         processedCheckpoint.compareAndSet(currentProcessedCheckpoint, seqNo);

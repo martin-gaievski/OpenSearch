@@ -49,6 +49,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.apache.lucene.search.BooleanClause;
@@ -136,6 +137,11 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * The default internal engine (can be overridden by plugins)
+ *
+ * @opensearch.internal
+ */
 public class InternalEngine extends Engine {
 
     /**
@@ -374,6 +380,8 @@ public class InternalEngine extends Engine {
      * since no indexing is happening and refreshes are only happening to the external reader manager, while with
      * this specialized implementation an external refresh will immediately be reflected on the internal reader
      * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
+     *
+     * @opensearch.internal
      */
     @SuppressForbidden(reason = "reference counting is required here")
     private static final class ExternalReaderManager extends ReferenceManager<OpenSearchDirectoryReader> {
@@ -639,17 +647,6 @@ public class InternalEngine extends Engine {
     @Override
     public long getWritingBytes() {
         return indexWriter.getFlushingBytes() + versionMap.getRefreshingBytes();
-    }
-
-    /**
-     * Reads the current stored history ID from the IW commit data.
-     */
-    private String loadHistoryUUID(Map<String, String> commitData) {
-        final String uuid = commitData.get(HISTORY_UUID_KEY);
-        if (uuid == null) {
-            throw new IllegalStateException("commit doesn't contain history uuid");
-        }
-        return uuid;
     }
 
     private ExternalReaderManager createReaderManager(RefreshWarmerListener externalRefreshListener) throws EngineException {
@@ -1290,6 +1287,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * The indexing strategy
+     *
+     * @opensearch.internal
+     */
     protected static final class IndexingStrategy {
         final boolean currentNotFoundOrDeleted;
         final boolean useLuceneUpdateDocument;
@@ -1639,6 +1641,11 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /**
+     * The deletion strategy
+     *
+     * @opensearch.internal
+     */
     protected static final class DeletionStrategy {
         // of a rare double delete
         final boolean deleteFromLucene;
@@ -2282,6 +2289,39 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public SegmentInfos getLatestSegmentInfos() {
+        OpenSearchDirectoryReader reader = null;
+        try {
+            reader = internalReaderManager.acquire();
+            return ((StandardDirectoryReader) reader.getDelegate()).getSegmentInfos();
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        } finally {
+            try {
+                internalReaderManager.release(reader);
+            } catch (IOException e) {
+                throw new EngineException(shardId, e.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Fetch the latest {@link SegmentInfos} object via {@link #getLatestSegmentInfos()}
+     * but also increment the ref-count to ensure that these segment files are retained
+     * until the reference is closed. On close, the ref-count is decremented.
+     */
+    @Override
+    public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
+        final SegmentInfos segmentInfos = getLatestSegmentInfos();
+        try {
+            indexWriter.incRefDeleter(segmentInfos);
+        } catch (IOException e) {
+            throw new EngineException(shardId, e.getMessage(), e);
+        }
+        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+    }
+
+    @Override
     protected final void writerSegmentStats(SegmentsStats stats) {
         stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
         stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
@@ -2452,7 +2492,11 @@ public class InternalEngine extends Engine {
         return iwc;
     }
 
-    /** A listener that warms the segments if needed when acquiring a new reader */
+    /**
+     * A listener that warms the segments if needed when acquiring a new reader
+     *
+     * @opensearch.internal
+     */
     static final class RefreshWarmerListener implements BiConsumer<OpenSearchDirectoryReader, OpenSearchDirectoryReader> {
         private final Engine.Warmer warmer;
         private final Logger logger;
@@ -2696,6 +2740,7 @@ public class InternalEngine extends Engine {
         return getTranslog().getLastSyncedGlobalCheckpoint();
     }
 
+    @Override
     public long getProcessedLocalCheckpoint() {
         return localCheckpointTracker.getProcessedCheckpoint();
     }
@@ -2863,6 +2908,11 @@ public class InternalEngine extends Engine {
         return commitData;
     }
 
+    /**
+     * Internal Asserting Index Writer
+     *
+     * @opensearch.internal
+     */
     private static class AssertingIndexWriter extends IndexWriter {
         AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);

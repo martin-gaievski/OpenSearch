@@ -119,8 +119,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Main lucene class.
+ *
+ * @opensearch.internal
+ */
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene91";
+    public static final String LATEST_CODEC = "Lucene92";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 

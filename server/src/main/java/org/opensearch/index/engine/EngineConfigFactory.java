@@ -42,6 +42,8 @@ import java.util.function.Supplier;
 
 /**
  * A factory to create an EngineConfig based on custom plugin overrides
+ *
+ * @opensearch.internal
  */
 public class EngineConfigFactory {
     private final CodecServiceFactory codecServiceFactory;
@@ -144,7 +146,8 @@ public class EngineConfigFactory {
         LongSupplier globalCheckpointSupplier,
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
-        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier
+        EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
+        boolean isReadOnlyReplica
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
@@ -174,7 +177,8 @@ public class EngineConfigFactory {
             globalCheckpointSupplier,
             retentionLeasesSupplier,
             primaryTermSupplier,
-            tombstoneDocSupplier
+            tombstoneDocSupplier,
+            isReadOnlyReplica
         );
     }
 
