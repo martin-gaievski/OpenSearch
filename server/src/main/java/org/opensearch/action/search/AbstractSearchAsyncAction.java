@@ -48,6 +48,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.lucene.search.CompoundQueryTopDocs;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.index.shard.ShardId;
@@ -64,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -696,7 +698,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+        // check on compound query results
+        executePostSearchPhase(this);
         executeNextPhase(this, getNextPhase(results, this));
+    }
+
+    void executePostSearchPhase(SearchPhase currentPhase) {
+        if (this.results instanceof QueryPhaseResultConsumer) {
+            QueryPhaseResultConsumer queryPhaseResultConsumer = (QueryPhaseResultConsumer) this.results;
+            Optional<SearchPhaseResult> maybeResult = Optional.empty();
+            for (int i = 0; i < queryPhaseResultConsumer.getAtomicArray().length(); i++) {
+                if (queryPhaseResultConsumer.getAtomicArray().get(i) != null) {
+                    maybeResult = Optional.of(queryPhaseResultConsumer.getAtomicArray().get(i));
+                    break;
+                }
+            }
+            if (maybeResult.isPresent()
+                && maybeResult.get().queryResult() != null
+                && maybeResult.get().queryResult().topDocs().topDocs instanceof CompoundQueryTopDocs) {
+                PostSearchPhaseProcessor postSearchPhaseProcessor = new NormalizationPostSearchPhaseProcessor();
+                postSearchPhaseProcessor.execute(this.results, this);
+            }
+        }
     }
 
     @Override
